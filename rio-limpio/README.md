@@ -1,13 +1,30 @@
 # Río Limpio
 
-Juego incremental 3D: un río con **1.000.000 kg de basura**. Juntás basura con tu barco, la llevás a la planta de reciclaje, cobrás y mejorás tu equipo hasta dejar el río limpio. A medida que limpiás, **el mundo y la música se curan**: el agua pasa de marrón a turquesa, vuelven los peces, las ranas, los pájaros y las flores, y la música pasa de menor y apagada a mayor y brillante.
+Juego incremental 3D: un río con **1.000.000 kg de basura**, formada por **4.274 objetos reales, todos visibles desde el inicio** (latas, bolsas, botellas, neumáticos, tambores, heladeras, autos, contenedores y 4 barcos hundidos). Nada aparece ni desaparece solo: si quedan 3 contenedores, ves 3 contenedores. Tocando el panel de progreso se ve el desglose de lo que queda.
 
-- **Motor:** Three.js + TypeScript + Vite (web). Un solo código para PC, celular y tiendas.
-- **Audio:** 100% procedural con Web Audio (sin archivos de audio): ambiente, motor, efectos y música generativa que cambia con la limpieza del río.
-- **Controles:** teclado (WASD/flechas, `E` mejoras, `R` volver) o táctil (arrastrar en cualquier parte de la pantalla = joystick flotante).
-- **Idiomas:** español e inglés (detecta el idioma del dispositivo).
-- **Guardado:** automático (localStorage), con ganancias offline de las barreras.
-- **Duración:** ~60–90 min para limpiar el río (medido con un bot que juega solo).
+Arrancás **juntando a mano desde un bote a remo**. Cumpliendo objetivos te dan herramientas y vehículos nuevos, y cada uno se mejora con plata:
+
+| Objetivo | Premio |
+|---|---|
+| Juntá 25 objetos | 🕸️ Red de pesca |
+| Sacá 400 kg | 🚤 Lancha a motor |
+| Juntá 600 objetos | 🏗️ Grúa (neumáticos) |
+| Sacá 30 neumáticos | 🧲 Imán gigante + grúa para tambores |
+| Juntá 1.200 objetos | 🎁 Hélice turbo (+2 niveles de motor) |
+| Sacá 20.000 kg | 🚤 Flota de lanchas ayudantes |
+| Sacá 70 tambores | 🌀 Aspiradora + grúa para heladeras |
+| Sacá 45 heladeras | 🛸 Drones + grúa para autos |
+| Sacá 30 autos | 🛳️ Barcaza industrial + grúa para contenedores |
+| Sacá los 40 contenedores | Grúa para barcos hundidos |
+| Limpiá todo el río | Final |
+
+La grúa **sube con objetivos, no con plata**: así es imposible quedar trabado sin poder avanzar. El imán y la aspiradora atraen la basura hacia el bote (se la ve moverse) y la grúa iza lo pesado de a poco con el bote anclado.
+
+- **Gráficos:** cielo con dispersión atmosférica (Preetham), iluminación por entorno (PBR), agua con reflejos planos reales, nubes procedurales, pasto animado, sombras suaves, bloom. Tres niveles de calidad (Ajustes → Gráficos).
+- **Audio:** 100% procedural con Web Audio: ambiente, remadas o motor según el vehículo, efectos por material, imán, fanfarria de desbloqueo y música generativa que pasa de menor a mayor a medida que se limpia el río.
+- **Controles:** teclado (WASD/flechas, `E` mejoras, `R` volver) o táctil (arrastrar en cualquier parte = joystick flotante).
+- **Idiomas:** español e inglés. **Guardado** automático (qué objetos juntaste, herramientas, vehículo, objetivo).
+- **Duración:** un bot que juega solo termina en ~44 min; una persona, estimado 60–80 min.
 
 ## Cómo ejecutarlo
 
@@ -34,14 +51,16 @@ Para probarlo en el celular: con `npm run dev` corriendo, abrí en el celular la
 |---|---|
 | `?clean=0.6` | Arranca con el río 60% limpio (para ver estados visuales) |
 | `?money=100000` | Arranca con plata |
-| `?levels=5` | Todas las mejoras en nivel 5 |
+| `?levels=5` | Todas las mejoras desbloqueadas en nivel 5 |
+| `?vehicle=lancha` | Arranca con ese vehículo (`remo`, `lancha`, `barcaza`) |
+| `?obj=4` | Salta al objetivo N |
+| `?quality=0` | Fuerza calidad gráfica (0 baja, 1 media, 2 alta) |
 | `?autoplay` | Saltea la pantalla de título |
 | `?timescale=20&norender` | Simulación acelerada sin dibujar (tests automáticos) |
 
 ## Balance
 
-Toda la economía está en `src/game/config.ts` (costos, curvas, tipos de basura, hitos).
-`npm run sim` corre una simulación rápida de la curva de progreso.
+Toda la economía está en `src/game/config.ts` (inventario de basura, costos, curvas, objetivos y tiempos de izado de la grúa). El balance se midió con un bot que juega la partida real acelerada (`?timescale=40&norender`).
 
 ## Estructura
 
@@ -53,9 +72,9 @@ src/
     config.ts        economía, tipos de basura, forma del río
     game.ts          lógica principal: barco, ayudantes, recolección, hitos, cámara
     world.ts         cielo, terreno, agua (shader propio), árboles, planta, puente
-    trash.ts         basura flotante (instancing, cientos de objetos a bajo costo)
-    effects.ts       partículas, peces, pájaros, barreras
-    models.ts        modelos 3D low-poly generados por código
+    trash.ts         inventario fijo de basura (instancing + grilla espacial + vaivén en GPU)
+    effects.ts       partículas, peces, pájaros
+    models.ts        modelos 3D generados por código: basura, bote a remo, lancha, barcaza, drones
     audio.ts         motor de audio procedural + música generativa
     ui.ts            HUD, tienda, modales, textos flotantes
     input.ts         teclado + joystick táctil

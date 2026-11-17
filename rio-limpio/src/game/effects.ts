@@ -170,7 +170,7 @@ export class Birds {
   private birds: Bird[] = [];
 
   constructor(scene: THREE.Scene) {
-    this.mesh = new THREE.InstancedMesh(makeBirdGeo(), new THREE.MeshLambertMaterial({ color: '#f8f9fa', side: THREE.DoubleSide }), 40);
+    this.mesh = new THREE.InstancedMesh(makeBirdGeo(), new THREE.MeshStandardMaterial({ color: '#f8f9fa', roughness: 0.8, side: THREE.DoubleSide }), 40);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
@@ -204,63 +204,6 @@ export class Birds {
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
-  }
-}
-
-// ---------------------------------------------------------------- barreras flotantes
-export const BARRIER_XS = [-140, -95, -60, 35, 70, 140, -120, 100];
-export class Barriers {
-  private mesh: THREE.InstancedMesh;
-  private perBarrier = 22;
-  private shown = -1;
-
-  constructor(scene: THREE.Scene) {
-    const g = new THREE.CylinderGeometry(0.35, 0.35, 1.4, 8);
-    g.rotateX(Math.PI / 2);
-    this.mesh = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: '#ffc300', roughness: 0.5 }), BARRIER_XS.length * this.perBarrier);
-    this.mesh.count = 0;
-    this.mesh.frustumCulled = false;
-    scene.add(this.mesh);
-  }
-
-  /** Las barreras salen desde la orilla norte, cubriendo ~35% del ancho (no bloquean el paso). */
-  positions(index: number): THREE.Vector3[] {
-    const x0 = BARRIER_XS[index];
-    const out: THREE.Vector3[] = [];
-    const hw = riverHalfWidth(x0);
-    const side = index % 2 === 0 ? 1 : -1;
-    for (let k = 0; k < this.perBarrier; k++) {
-      const f = k / (this.perBarrier - 1);
-      const z = riverCenter(x0) + side * (hw - 1 - f * hw * 0.7);
-      const x = x0 + f * 6;
-      out.push(new THREE.Vector3(x, 0, z));
-    }
-    return out;
-  }
-
-  update(t: number, level: number) {
-    const count = Math.min(BARRIER_XS.length, level === 0 ? 0 : Math.ceil(level / 2.25));
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion();
-    let n = 0;
-    for (let b = 0; b < count; b++) {
-      const pts = this.positions(b);
-      for (let k = 0; k < pts.length; k++) {
-        const p = pts[k];
-        const next = pts[Math.min(k + 1, pts.length - 1)];
-        const prev = pts[Math.max(k - 1, 0)];
-        const yaw = Math.atan2(next.x - prev.x, next.z - prev.z);
-        q.setFromEuler(new THREE.Euler(0, yaw, Math.sin(t * 2 + k) * 0.1));
-        m.compose(new THREE.Vector3(p.x, 0.05 + Math.sin(t * 1.6 + k * 0.6) * 0.06, p.z), q, new THREE.Vector3(1, 1, 1));
-        this.mesh.setMatrixAt(n++, m);
-      }
-    }
-    this.shown = count;
-    this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-  }
-
-  get visibleCount() {
-    return this.shown;
   }
 }
 

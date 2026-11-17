@@ -294,14 +294,27 @@ export class AudioEngine {
   }
 
   /** throttle 0..1 */
+  vehicle: 'remo' | 'lancha' | 'barcaza' = 'remo';
+  private throttle = 0;
+  private nextOar = 0;
+  private lastPull = 0;
+
   setEngine(throttle: number, speedNorm: number) {
     if (!this.started) return;
     const t = this.ctx.currentTime;
     const th = Math.max(0, Math.min(1, throttle));
-    this.engineGain.gain.setTargetAtTime(0.012 + th * 0.06, t, 0.12);
-    this.engineOsc.frequency.setTargetAtTime(42 + th * 34 + speedNorm * 10, t, 0.15);
-    this.engineOsc2.frequency.setTargetAtTime(85 + th * 70 + speedNorm * 20, t, 0.15);
-    this.engineFilter.frequency.setTargetAtTime(220 + th * 650, t, 0.15);
+    this.throttle = th;
+    if (this.vehicle === 'remo') {
+      // sin motor: solo el agua contra el casco
+      this.engineGain.gain.setTargetAtTime(0, t, 0.12);
+      this.bubbleGain.gain.setTargetAtTime(th * 0.05, t, 0.2);
+      return;
+    }
+    const big = this.vehicle === 'barcaza' ? 0.7 : 1;
+    this.engineGain.gain.setTargetAtTime((0.012 + th * 0.06) * (this.vehicle === 'barcaza' ? 1.3 : 1), t, 0.12);
+    this.engineOsc.frequency.setTargetAtTime((42 + th * 34 + speedNorm * 10) * big, t, 0.15);
+    this.engineOsc2.frequency.setTargetAtTime((85 + th * 70 + speedNorm * 20) * big, t, 0.15);
+    this.engineFilter.frequency.setTargetAtTime((220 + th * 650) * big, t, 0.15);
     this.bubbleGain.gain.setTargetAtTime(th * 0.11, t, 0.2);
   }
 
@@ -339,6 +352,12 @@ export class AudioEngine {
     if (c > 0.3 && t > this.nextFrog) {
       this.frog();
       this.nextFrog = t + rand(2.5, 8) / (c * 1.5);
+    }
+
+    // remadas del bote
+    if (this.vehicle === 'remo' && this.throttle > 0.2 && t > this.nextOar) {
+      this.oar();
+      this.nextOar = t + 1.05 - this.throttle * 0.3;
     }
 
     // música con lookahead
@@ -846,6 +865,93 @@ export class AudioEngine {
     });
     this.bell(96, t + 0.6, 0.06);
     for (let i = 0; i < 4; i++) setTimeout(() => this.bird(), 300 + i * 250);
+  }
+
+  /** Remada: entrada del remo al agua + arrastre. */
+  private oar() {
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    for (const pan of [-0.6, 0.6]) {
+      const src = this.noiseSource();
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(1800, t);
+      f.frequency.exponentialRampToValueAtTime(500, t + 0.45);
+      f.Q.value = 1.2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.09, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      const p = this.panner(pan);
+      src.connect(f).connect(g).connect(p);
+      p.connect(this.sfx);
+      p.connect(this.reverbSend);
+      src.start(t, rand(0, 1.5));
+      src.stop(t + 0.6);
+    }
+    // goteo del remo al salir
+    for (let i = 0; i < 3; i++) {
+      const tt = t + 0.5 + i * rand(0.06, 0.12);
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(rand(900, 1500), tt);
+      o.frequency.exponentialRampToValueAtTime(rand(1800, 2600), tt + 0.04);
+      const g = ctx.createGain();
+      this.env(g, tt, 0.025, 0.002, 0.06);
+      o.connect(g).connect(this.sfx);
+      o.start(tt);
+      o.stop(tt + 0.1);
+    }
+  }
+
+  /** Objeto atraído por imán / aspiradora. */
+  pull(magnetic: boolean) {
+    if (!this.started) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    if (t - this.lastPull < 0.12) return;
+    this.lastPull = t;
+    const o = ctx.createOscillator();
+    o.type = magnetic ? 'sawtooth' : 'sine';
+    o.frequency.setValueAtTime(magnetic ? 180 : 500, t);
+    o.frequency.exponentialRampToValueAtTime(magnetic ? 520 : 1400, t + 0.25);
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = magnetic ? 900 : 2200;
+    const g = ctx.createGain();
+    this.env(g, t, 0.035, 0.03, 0.25);
+    o.connect(f).connect(g).connect(this.sfx);
+    o.start(t);
+    o.stop(t + 0.32);
+  }
+
+  /** Fanfarria de herramienta / vehículo nuevo. */
+  unlock() {
+    if (!this.started) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    this.pad([60, 64, 67, 72, 76], t, 3.5, 3500, 0.08);
+    const notes = [67, 72, 76, 79, 84, 88];
+    notes.forEach((n, i) => {
+      const p = this.panner(-0.5 + i * 0.2);
+      p.connect(this.sfx);
+      p.connect(this.reverbSend);
+      p.connect(this.delaySend);
+      this.chime(n, t + i * 0.07, 0.1, p);
+    });
+    // "whoosh" ascendente
+    const s = this.noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2;
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.exponentialRampToValueAtTime(5000, t + 0.6);
+    const g = ctx.createGain();
+    this.env(g, t, 0.08, 0.3, 0.4);
+    s.connect(f).connect(g).connect(this.sfx);
+    s.start(t);
+    s.stop(t + 0.9);
+    this.bell(96, t + 0.5, 0.06);
+    this.bell(91, t + 0.8, 0.05);
   }
 
   victory() {
