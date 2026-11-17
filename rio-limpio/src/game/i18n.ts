@@ -51,6 +51,8 @@ const es = {
     '1': '100%: ¡río limpio!',
   } as Record<string, string>,
   bonus: 'Premio',
+  yes: 'Sí, borrar',
+  cancel: 'Cancelar',
   next: 'Próximo hito',
   up: {
     red: ['Red', 'Radio de recolección'],
@@ -116,6 +118,8 @@ const en: typeof es = {
     '1': '100%: clean river!',
   },
   bonus: 'Bonus',
+  yes: 'Yes, delete',
+  cancel: 'Cancel',
   next: 'Next goal',
   up: {
     red: ['Net', 'Pickup radius'],

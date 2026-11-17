@@ -260,6 +260,14 @@ export class UI {
     requestAnimationFrame(() => back.classList.add('in'));
     return back;
   }
+  /** Confirmación dentro del juego (confirm() nativo no funciona en webviews/iframes). */
+  ask(text: string, onYes: () => void) {
+    const s = t();
+    const m = this.modal(`<p class="ask-t">${text}</p><div class="modal-btns"><button class="ghost-btn no">${s.cancel}</button><button class="big-btn danger-btn yes">${s.yes}</button></div>`, 'ask');
+    $('.no', m).addEventListener('click', () => { this.hooks.click(); this.closeModal(m); });
+    $('.yes', m).addEventListener('click', () => { this.closeModal(m); onYes(); });
+  }
+
   closeModal(m: HTMLElement) {
     m.classList.remove('in');
     setTimeout(() => m.remove(), 300);
@@ -290,9 +298,10 @@ export class UI {
     $('.play', scr).addEventListener('click', () => { close(); onPlay(); });
     const nb = scr.querySelector('.new');
     nb?.addEventListener('click', () => {
-      if (!confirm(s.resetConfirm)) return;
-      close();
-      onNew();
+      this.ask(s.resetConfirm, () => {
+        close();
+        onNew();
+      });
     });
   }
 
@@ -322,7 +331,7 @@ export class UI {
       emit();
     }));
     $('.reset', m).addEventListener('click', () => {
-      if (confirm(s.resetConfirm)) this.hooks.reset();
+      this.ask(s.resetConfirm, () => this.hooks.reset());
     });
     $('.close', m).addEventListener('click', () => { this.hooks.click(); this.closeModal(m); });
   }

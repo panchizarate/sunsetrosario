@@ -1,6 +1,6 @@
-@import '@fontsource/baloo-2/500.css';
-@import '@fontsource/baloo-2/700.css';
-@import '@fontsource/baloo-2/800.css';
+@import '@fontsource/baloo-2/latin-500.css';
+@import '@fontsource/baloo-2/latin-700.css';
+@import '@fontsource/baloo-2/latin-800.css';
 
 :root {
   --ink: #0f2a2e;
@@ -221,6 +221,10 @@ button { font-family: inherit; cursor: pointer; border: 0; }
 .big-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--green-d); }
 .ghost-btn { background: rgba(255, 255, 255, 0.2); color: inherit; font-weight: 700; font-size: 16px; padding: 10px 20px; border-radius: 14px; border: 2px solid currentColor; }
 .ghost-btn.danger { color: #d64545; background: transparent; }
+.ask .modal { width: min(360px, 100%); }
+.ask .ghost-btn { color: var(--ink); }
+.ask-t { font-size: 18px !important; font-weight: 700; opacity: 1 !important; margin-top: 6px !important; }
+.big-btn.danger-btn { background: linear-gradient(180deg, #ff7a7a, #e04848); box-shadow: 0 6px 0 #a83232, var(--shadow); }
 .stats-row { display: flex; justify-content: center; gap: 22px; margin: 12px 0; }
 .stats-row div { display: flex; flex-direction: column; }
 .stats-row b { font-size: 24px; }
