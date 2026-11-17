@@ -1,0 +1,1 @@
+{ "name": "El Penthouse", "short_name": "Penthouse", "start_url": "./", "display": "fullscreen", "orientation": "any", "background_color": "#07060c", "theme_color": "#07060c", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] }

@@ -102,30 +102,30 @@ export type UpgradeId = 'manos' | 'velocidad' | 'agarre' | 'iman' | 'escaner' | 
 export interface UpgradeDef { id: UpgradeId; icon: string; name: string; desc: string; max: number; cost: (l: number) => number }
 const geo = (b: number, g: number) => (l: number) => Math.round(b * Math.pow(g, l));
 export const UPGRADES: UpgradeDef[] = [
-  { id: 'manos', icon: '🤲', name: 'Manos', desc: 'Llevás más objetos a la vez', max: 9, cost: geo(60, 1.75) },
-  { id: 'velocidad', icon: '👟', name: 'Velocidad', desc: 'Caminás y corrés más rápido', max: 6, cost: geo(90, 1.9) },
-  { id: 'agarre', icon: '✋', name: 'Agarre rápido', desc: 'Juntás varios iguales de un toque', max: 6, cost: geo(150, 1.95) },
-  { id: 'iman', icon: '🧲', name: 'Imán', desc: 'Los objetos iguales flotan hacia vos', max: 6, cost: geo(400, 1.9) },
-  { id: 'escaner', icon: '📡', name: 'Escáner', desc: 'Resalta a dónde va y los iguales', max: 3, cost: geo(250, 2.6) },
-  { id: 'ayudantes', icon: '🤖', name: 'Robots ayudantes', desc: 'Ordenan solos', max: 6, cost: geo(1200, 2.2) },
-  { id: 'combo', icon: '🔥', name: 'Combo', desc: 'Las rachas sin errores pagan más', max: 5, cost: geo(300, 2.1) },
+  { id: 'manos', icon: '🤲', name: 'Manos', desc: 'Llevás más objetos a la vez', max: 9, cost: geo(80, 1.85) },
+  { id: 'velocidad', icon: '👟', name: 'Velocidad', desc: 'Caminás y corrés más rápido', max: 6, cost: geo(140, 2.0) },
+  { id: 'agarre', icon: '✋', name: 'Agarre rápido', desc: 'Juntás varios iguales de un toque', max: 6, cost: geo(220, 2.05) },
+  { id: 'iman', icon: '🧲', name: 'Imán', desc: 'Los objetos iguales flotan hacia vos', max: 6, cost: geo(700, 2.0) },
+  { id: 'escaner', icon: '📡', name: 'Escáner', desc: 'Resalta a dónde va y los iguales', max: 3, cost: geo(450, 2.8) },
+  { id: 'ayudantes', icon: '🤖', name: 'Robots ayudantes', desc: 'Ordenan solos', max: 6, cost: geo(3000, 2.1) },
+  { id: 'combo', icon: '🔥', name: 'Combo', desc: 'Las rachas sin errores pagan más', max: 5, cost: geo(500, 2.2) },
 ];
 export type Levels = Record<UpgradeId, number>;
 export const emptyLevels = (): Levels => ({ manos: 0, velocidad: 0, agarre: 0, iman: 0, escaner: 0, ayudantes: 0, combo: 0 });
 
 export function stats(l: Levels) {
   return {
-    hands: [3, 5, 7, 9, 11, 13, 15, 17, 19, 20][l.manos],
+    hands: [3, 4, 5, 7, 9, 11, 13, 15, 17, 20][l.manos],
     walk: 3.6 * (1 + 0.1 * l.velocidad),
     run: 6.2 * (1 + 0.1 * l.velocidad),
-    grabExtra: [0, 2, 4, 6, 9, 12, 16][l.agarre],
+    grabExtra: [0, 1, 2, 3, 5, 7, 9][l.agarre],
     grabRadius: 1.2 + 0.25 * l.agarre,
-    magnet: l.iman > 0 ? 2 + 0.9 * l.iman : 0,
+    magnet: l.iman > 0 ? 1.5 + 0.6 * l.iman : 0,
     scanner: l.escaner,
     helpers: l.ayudantes,
-    helperRate: 0.35 + 0.08 * l.ayudantes, // objetos/s por robot
-    comboStep: 0.1 + 0.05 * l.combo,
-    comboMax: 2 + 0.6 * l.combo,
+    helperRate: 0.07 + 0.02 * l.ayudantes, // objetos/s por robot
+    comboStep: 0.05 + 0.03 * l.combo,
+    comboMax: 1.5 + 0.3 * l.combo,
     reach: 3.4,
   };
 }

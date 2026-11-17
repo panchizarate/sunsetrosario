@@ -171,8 +171,12 @@ export class House {
     // canaletas de luz en el techo (doble altura) y en el cielo raso del entrepiso
     for (let i = 0; i < 5; i++) b.box(W - 2, 0.05, 0.08, this.glow('living', '#ffe2c0', 1.2), 0, CEIL - 0.02, -10.5 + i * 2.4);
     // paredes sólidas
-    b.box(W, CEIL, 0.3, m.wall, 0, CEIL / 2, B.z1 + 0.15); // sur
-    this.col(B.x0, B.x1, 0, CEIL, B.z1, B.z1 + 0.3);
+    b.box(13.4, CEIL, 0.3, m.wall, -13.3, CEIL / 2, B.z1 + 0.15); // sur (con hueco de la puerta secreta)
+    b.box(24.6, CEIL, 0.3, m.wall, 7.7, CEIL / 2, B.z1 + 0.15);
+    b.box(2, CEIL - 3.2, 0.3, m.wall, -5.6, 3.2 + (CEIL - 3.2) / 2, B.z1 + 0.15);
+    this.col(B.x0, -6.6, 0, CEIL, B.z1, B.z1 + 0.3);
+    this.col(-4.6, B.x1, 0, CEIL, B.z1, B.z1 + 0.3);
+    this.col(-6.6, -4.6, 3.2, CEIL, B.z1, B.z1 + 0.3);
     b.box(0.3, CEIL, B.z1, m.wall, B.x0 - 0.15, CEIL / 2, B.z1 / 2); // oeste (z>0)
     b.box(0.3, CEIL, B.z1, m.wall, B.x1 + 0.15, CEIL / 2, B.z1 / 2); // este (z>0)
     this.col(B.x0 - 0.3, B.x0, 0, CEIL, 0, B.z1);
@@ -552,15 +556,16 @@ export class House {
       const slots: THREE.Matrix4[] = [];
       for (let r = 0; r < 5; r++) {
         const y = y0 + 0.6 + r * 0.36;
-        b.box(0.42, 0.02, 1.66, m.white, wx, y, z0 + 0.83);
+        b.box(0.42, 0.025, 1.66, m.walnut, wx, y, z0 + 0.83);
+        b.box(0.02, 0.012, 1.6, this.glow('vestidor', '#ffe6c8', 2.2), wx + 0.2, y + 0.33, z0 + 0.83);
         for (let k = 0; k < 10; k++) slots.push(this.slot(wx + 0.02, y + 0.012, z0 + 0.09 + k * 0.165, -Math.PI / 2));
       }
-      b.box(0.02, 1.85, 1.66, this.glow('vestidor', '#fff3e4', 0.9), B.x0 + 0.06, y0 + 1.42, z0 + 0.83);
-      b.box(0.42, 1.9, 0.02, m.white, wx, y0 + 1.45, z0);
+      b.box(0.02, 1.85, 1.66, m.black, B.x0 + 0.06, y0 + 1.42, z0 + 0.83);
+      b.box(0.42, 1.9, 0.03, m.brass, wx, y0 + 1.45, z0);
       this.section('zapatilla', s, 'vestidor', new THREE.Box3(new THREE.Vector3(B.x0, y0 + 0.4, z0), new THREE.Vector3(wx + 0.8, y0 + 2.5, z0 + 1.68)), slots);
       this.label(CATEGORIES[8].variants[s].name.toUpperCase(), 1.1, 0.27, new THREE.Vector3(wx + 0.22, y0 + 2.55, z0 + 0.83), Math.PI / 2, '#ffffff', CATEGORIES[8].variants[s].color2, 'vestidor');
     }
-    b.box(0.42, 1.9, 0.02, m.white, wx, y0 + 1.45, 1.2 + 6 * 1.68);
+    b.box(0.42, 1.9, 0.03, m.brass, wx, y0 + 1.45, 1.2 + 6 * 1.68);
     this.col(B.x0, wx + 0.25, y0, y0 + 2.6, 1.1, 11.4);
     // pared de gorras (tabique), 6 colores, 10 x 5 ganchos
     for (let s = 0; s < 6; s++) {

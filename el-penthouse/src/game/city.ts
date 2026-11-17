@@ -9,7 +9,7 @@ export class City {
   private rain!: THREE.InstancedMesh;
   private drops: Float32Array;
   private nRain: number;
-  private nextBolt = 6;
+  private nextBolt = 25;
   onThunder: (strength: number) => void = () => {};
 
   constructor(scene: THREE.Scene, high: boolean) {
@@ -54,17 +54,20 @@ export class City {
         ${NOISE}
         void main(){
           vec2 f = abs(vN.x) > 0.5 ? vec2(vWP.z, vWP.y) : vec2(vWP.x, vWP.y);
-          vec2 cell = floor(f / vec2(1.6, 3.2));
-          vec2 g = fract(f / vec2(1.6, 3.2));
+          vec2 cell = floor(f / vec2(2.6, 3.8));
+          vec2 g = fract(f / vec2(2.6, 3.8));
+          vec2 fw = fwidth(f);
+          float aa = smoothstep(0.25, 0.9, max(fw.x / 2.6, fw.y / 3.8));
           float win = step(0.2, g.x) * step(g.x, 0.8) * step(0.25, g.y) * step(g.y, 0.75);
           float r = ph21(cell + vSeed * 17.0);
           float band = step(0.5, ph21(vec2(floor(f.y / 30.0), vSeed * 9.0)));
-          float lit = step(0.72 - band * 0.12, r) * (0.55 + 0.45 * ph21(cell * 3.1)) * (0.85 + 0.15 * sin(uTime * 0.3 + r * 40.0));
+          float lit = step(0.84 - band * 0.1, r) * (0.55 + 0.45 * ph21(cell * 3.1)) * (0.85 + 0.15 * sin(uTime * 0.3 + r * 40.0));
           vec3 warm = mix(vec3(1.0, 0.75, 0.45), vec3(0.6, 0.8, 1.0), step(0.85, ph21(cell * 1.7 + vSeed)));
           vec3 glass = mix(vec3(0.012, 0.016, 0.03), vec3(0.03, 0.035, 0.06), step(0.5, fract(f.x / 9.0)));
           vec3 col = glass + win * lit * warm * 1.1;
+          col = mix(col, glass + warm * 0.05, aa);
           if (vN.y > 0.5) col = vec3(0.03) + step(0.97, ph21(floor(vWP.xz * 0.3))) * vec3(1.0, 0.2, 0.2);
-          col += uFlash * 0.15;
+          col += uFlash * 0.04;
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -81,22 +84,48 @@ export class City {
       let x = 0, z = 0;
       do { x = (r() - 0.5) * 1400; z = (r() - 0.5) * 1400; } while (Math.hypot(x - 5, z) < 160);
       const d = Math.hypot(x, z);
-      const h = 90 + r() * 170 + (d < 350 ? r() * 120 : 0);
+      const h = -150 + r() * 150 + (r() < 0.14 ? r() * 140 : 0) + (d > 500 ? 40 : 0);
       const w = 22 + r() * 40, dd = 22 + r() * 40;
-      m.compose(new THREE.Vector3(x, -260, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(r() * 3) * 0.08), new THREE.Vector3(w, h + 260, dd));
+      m.compose(new THREE.Vector3(x, -420, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(r() * 3) * 0.08), new THREE.Vector3(w, h + 420, dd));
       towers.setMatrixAt(i, m);
       seeds[i] = r();
     }
     towers.geometry.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seeds, 1));
     (this as any).winMat = winMat;
     this.group.add(towers);
+    // calles allá abajo: grilla de luces naranjas y autos
+    const streets = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.ShaderMaterial({
+      fog: true,
+      uniforms: Object.assign(THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), { uTime: this.timeU }),
+      vertexShader: `varying vec3 vWP;
+        #include <fog_pars_vertex>
+        void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWP = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+        }`,
+      fragmentShader: `varying vec3 vWP; uniform float uTime;
+        #include <fog_pars_fragment>
+        void main(){
+          vec2 p = vWP.xz / 90.0;
+          vec2 g = abs(fract(p) - 0.5);
+          float road = smoothstep(0.47, 0.5, max(g.x, g.y));
+          float cars = step(0.93, fract((vWP.x + vWP.z) * 0.05 + uTime * 0.4)) * road;
+          vec3 col = vec3(0.01, 0.008, 0.015) + road * vec3(0.5, 0.25, 0.08) * 0.6 + cars * vec3(1.0, 0.9, 0.8);
+          gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          #include <fog_fragment>
+        }`,
+    }));
+    streets.rotation.x = -Math.PI / 2;
+    streets.position.y = -420;
+    this.group.add(streets);
     // carteles de neón en algunas torres
     const neonCols = ['#ff2fa0', '#2ee6ff', '#ffb347', '#7dffb0', '#b06bff'];
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2 + 0.3;
       const d = 110 + r() * 160;
       const p = new THREE.Mesh(new THREE.PlaneGeometry(14 + r() * 12, 4 + r() * 5), new THREE.MeshBasicMaterial({ color: new THREE.Color(neonCols[i % 5]).multiplyScalar(2.2), toneMapped: false }));
-      p.position.set(Math.cos(a) * d, -10 + r() * 40, Math.sin(a) * d);
+      p.position.set(Math.cos(a) * d, -60 + r() * 45, Math.sin(a) * d);
       p.lookAt(0, p.position.y, 0);
       this.group.add(p);
     }
