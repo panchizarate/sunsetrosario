@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+// @ts-ignore sin tipos
+import { N8AOPass } from 'n8ao';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
@@ -111,15 +113,15 @@ export class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.high ? 1.5 : 1.35));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = this.high;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if (this.high) RectAreaLightUniformsLib.init();
     const sc = this.scene;
     sc.fog = new THREE.FogExp2(0x1a0f22, 0.0018);
     sc.environment = nightEnvironment(this.renderer);
-    sc.environmentIntensity = 1.15;
-    sc.add(new THREE.HemisphereLight(0x8a7aff, 0x2a1c14, 0.42));
+    sc.environmentIntensity = 1.35;
+    sc.add(new THREE.HemisphereLight(0x9a8cff, 0x4a3424, this.high ? 0.62 : 1.1));
     const moon = new THREE.DirectionalLight(0x9fb4ff, 1.2);
     moon.position.set(-30, 40, -60);
     moon.castShadow = this.high;
@@ -153,7 +155,11 @@ export class Game {
     // post
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(size.x || 1, size.y || 1, { type: THREE.HalfFloatType, samples: this.high ? 4 : 0 }));
-    this.composer.addPass(new RenderPass(sc, this.cam));
+    if (this.high) {
+      const ao = new N8AOPass(sc, this.cam, size.x || 1, size.y || 1);
+      Object.assign(ao.configuration, { aoRadius: 0.9, distanceFalloff: 0.6, intensity: 2.6, halfRes: true, aoSamples: 12, denoiseRadius: 10, color: new THREE.Color(0, 0, 0), gammaCorrection: false });
+      this.composer.addPass(ao);
+    } else this.composer.addPass(new RenderPass(sc, this.cam));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.55, 0.6, 0.85);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new ShaderPass({
@@ -403,28 +409,65 @@ export class Game {
       return;
     }
     if (!g) return;
-    const geo = this.items.geos.get(g.key)!;
-    const mat = this.items.displayMats.get(g.key)!;
-    geo.computeBoundingSphere();
-    const r = geo.boundingSphere!.radius;
-    const s = Math.min(1.2, (g.kind === 'prenda' ? 0.13 : 0.065) / r);
-    const n = Math.min(g.count, 4);
-    const mesh = new THREE.InstancedMesh(geo, mat, n);
+    const held = this.held.filter((it) => it.kind + it.variant === g.key).slice(0, 4);
+    const src = held[0].mesh;
+    const r = src.parts[0].geometry.boundingSphere?.radius ?? (src.parts[0].geometry.computeBoundingSphere(), src.parts[0].geometry.boundingSphere!.radius);
+    const s = Math.min(1.2, (g.kind === 'prenda' ? 0.13 : 0.075) / r);
+    const n = held.length;
     const cat = CATEGORIES.find((c) => c.kind === g.kind)!;
     const col = new THREE.Color(cat.variants[g.variant].color);
-    for (let i = 0; i < n; i++) {
-      const m = new THREE.Matrix4();
-      const off = new THREE.Vector3(i * (g.kind === 'libro' ? 0.018 : 0.045) - 0.02, 0, -i * 0.03);
-      const rot = g.kind === 'libro' ? new THREE.Euler(0.12, Math.PI / 2 - 0.45 + i * 0.12, 0.04) : new THREE.Euler(0.12, -0.5 + i * 0.25, 0);
-      m.compose(off.multiplyScalar(1), new THREE.Quaternion().setFromEuler(rot), new THREE.Vector3(s, s, s));
-      mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, col);
-    }
-    mesh.frustumCulled = false;
     const holder = new THREE.Group();
-    holder.add(mesh);
+    for (const part of src.parts) {
+      const mesh = new THREE.InstancedMesh(part.geometry, part.material, n);
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.Matrix4();
+        const off = new THREE.Vector3(i * (g.kind === 'libro' ? 0.018 : 0.045) - 0.02, 0, -i * 0.03);
+        const rot = g.kind === 'libro' ? new THREE.Euler(0.12, Math.PI / 2 - 0.45 + i * 0.12, 0.04) : new THREE.Euler(0.12, -0.5 + i * 0.25, 0);
+        m.compose(off, new THREE.Quaternion().setFromEuler(rot), new THREE.Vector3(s, s, s));
+        mesh.setMatrixAt(i, m);
+        if (src.colorable) mesh.setColorAt(i, col);
+      }
+      mesh.frustumCulled = false;
+      holder.add(mesh);
+    }
     holder.position.set(0.32, g.kind === 'prenda' ? -0.2 : -0.27, -0.62);
     this.viewmodel.add(holder);
+  }
+  // siluetas: muestran el lugar exacto donde va a caer cada objeto que llevás
+  private ghost3 = new THREE.Group();
+  private ghostKey = '';
+  private ghostMat = new THREE.MeshBasicMaterial({ color: 0x9ff7ff, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending });
+  private updateGhosts() {
+    const t = this.target;
+    let key = '';
+    let sec: Section | null = null, match: Item[] = [];
+    if (t && t.t === 'sec') {
+      sec = t.sec;
+      match = this.held.filter((i) => i.kind === sec!.kind && i.variant === sec!.variant);
+      if (match.length) key = `${sec.label}|${sec.filled}|${match.length}`;
+    }
+    this.ghostMat.opacity = 0.16 + 0.1 * Math.sin(this.time * 5);
+    if (key === this.ghostKey) return;
+    this.ghostKey = key;
+    this.ghost3.clear();
+    if (!this.ghost3.parent) this.scene.add(this.ghost3);
+    if (!key || !sec) return;
+    const n = Math.min(match.length, sec.slots.length - sec.filled);
+    for (let i = 0; i < n; i++) {
+      const it = match[i];
+      for (const part of it.mesh.parts) {
+        const g = new THREE.Mesh(part.geometry, this.ghostMat);
+        sec.slots[sec.filled + i].decompose(g.position, g.quaternion, g.scale);
+        g.scale.multiplyScalar(1.02);
+        this.ghost3.add(g);
+      }
+    }
+  }
+  /** Pequeño golpe de cámara + vibración: el "click" de dejar algo bien puesto. */
+  private kickT = 0;
+  private kick(power = 1) {
+    this.kickT = Math.max(this.kickT, 0.12 * power);
+    try { navigator.vibrate?.(Math.round(12 * power)); } catch { /* */ }
   }
 
   private updateScanner() {
@@ -553,18 +596,21 @@ export class Game {
     this.placed++;
     this.zoneCount.set(it.zone, (this.zoneCount.get(it.zone) ?? 0) + 1);
     if (!helper) {
+      this.kick(0.6);
       this.combo++;
       this.comboT = 4;
       audio.place(it.cat.material as Mat);
     }
     const pay = ITEM_PAY * (ZONE_PAY[it.zone] ?? 1) * (helper ? 1 : this.mult);
     this.addMoney(pay);
+    if (!helper) this.ui.floatText(`+${fmt(pay)}${this.mult > 1.05 ? ` <small>×${this.mult.toFixed(1)}</small>` : ''}`, 'pay');
     if (sec.filled >= sec.slots.length && it.slot === sec.slots.length - 1) this.sectionDone(sec);
     if ((this.zoneCount.get(it.zone) ?? 0) >= (this.zoneTotal.get(it.zone) ?? 1) && !this.done.has(it.zone)) this.zoneDone(it.zone);
     const z = this.hereZone();
     this.zoneHUD(z);
   }
   private sectionDone(sec: Section) {
+    this.kick(2);
     audio.shelfDone();
     const zc = ZONES.find((z) => z.id === sec.zone)!.neon;
     this.sparkles.burst(sec.box, zc, 160);
@@ -749,7 +795,8 @@ export class Game {
     }
     const bob = moving ? Math.sin(this.bobT) * 0.035 : 0;
     this.cam.position.set(this.pos.x, this.pos.y + EYE + bob, this.pos.z);
-    this.cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    this.kickT = Math.max(0, this.kickT - 0.016);
+    this.cam.rotation.set(this.pitch - this.kickT * 0.25, this.yaw, 0, 'YXZ');
     // balanceo del objeto en la mano
     this.vmShake = Math.max(0, this.vmShake - dt);
     this.viewmodel.position.x = Math.sin(this.vmShake * 40) * this.vmShake * 0.08;
@@ -1080,6 +1127,8 @@ export class Game {
     // apuntar
     if (!blockedInput && !this.basket) {
       this.target = this.findTarget();
+      this.items.setHover(this.target && this.target.t === 'item' && this.held.length < this.st.hands ? this.target.it : null);
+      this.updateGhosts();
       const [txt, k] = this.describe(this.target);
       this.ui.aim(txt, k);
       if (this.input.firePressed) this.act();

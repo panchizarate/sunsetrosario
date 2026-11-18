@@ -12,6 +12,8 @@
     "@fontsource/baloo-2": "^5.1.0",
     "@fontsource/inter": "^5.1.0",
     "@fontsource/space-grotesk": "^5.1.0",
+    "n8ao": "^1.10.1",
+    "postprocessing": "^6.36.4",
     "three": "^0.170.0"
   },
   "devDependencies": {

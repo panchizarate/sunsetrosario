@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { B, MEZZ, CEIL, STAIRS, LANDING, TERRACE, SECRET, ZoneId, ZONES, CATEGORIES, ItemKind } from './config';
 import * as M from './materials';
+import { prop } from './assets';
 
 // ======================================================================================
 // Arquitectura del penthouse, muebles, estanterías (con lugares exactos), puertas, luces.
@@ -83,12 +84,12 @@ export class House {
     if (high) RectAreaLightUniformsLib.init();
     this.b = new Builder(this.group, shadows);
     this.mats = {
-      marble: M.marbleDark(),
+      marble: M.surface('marble_01', { scale: 0.42, tint: '#4a4a52', rough: 0.35, normal: 0.4 }),
       marbleW: M.marbleWhite(),
-      oak: M.oakFloor(),
+      oak: M.surface('herringbone_parquet', { scale: 0.5, tint: '#e8d6c4', rough: 1.6, normal: 1.2 }),
       walnut: M.walnut(1),
-      wall: M.microcement(new THREE.Color(0.3, 0.27, 0.25)),
-      wallDark: M.microcement(new THREE.Color(0.16, 0.15, 0.16)),
+      wall: M.surface('plastered_wall_04', { scale: 0.3, tint: '#e8dfd4', normal: 0.5 }),
+      wallDark: M.surface('plastered_wall_04', { scale: 0.3, tint: '#8c8290', normal: 0.5 }),
       ceil: M.microcement(new THREE.Color(0.06, 0.055, 0.06)),
       steel: M.blackSteel(),
       chrome: M.chrome(),
@@ -96,11 +97,11 @@ export class House {
       glass: M.rainGlass(this.timeU),
       clearGlass: new THREE.MeshPhysicalMaterial({ color: 0xd8f0ff, roughness: 0.05, transmission: 0, transparent: true, opacity: 0.18, metalness: 0.2 }),
       felt: new THREE.MeshStandardMaterial({ color: 0x0f5132, roughness: 0.95 }),
-      rug: M.proc({ color: 0xffffff, roughness: 1 }, { color: `float r = length(vWP.xz - vec2(-10.0, -6.5)); diffuseColor.rgb = mix(vec3(0.16, 0.14, 0.13), vec3(0.26, 0.22, 0.19), smoothstep(0.4, 0.6, pn2(vWP.xz * 3.0))) * (0.9 + 0.1 * sin(r * 6.0));` }),
+      rug: M.surface('poly_wool_herringbone', { scale: 1.3, tint: '#9a8a7a', normal: 0.8 }),
       shelfLed: M.neon('#ffd9a0', 2.5),
       black: new THREE.MeshStandardMaterial({ color: 0x0b0b0e, roughness: 0.6 }),
       white: new THREE.MeshStandardMaterial({ color: 0xf2f0ec, roughness: 0.5 }),
-      deck: M.proc({ color: 0xffffff, roughness: 0.7 }, { color: `float row = floor(vWP.z / 0.16); float g = pn2(vec2(vWP.x * 1.5, row)); diffuseColor.rgb = mix(vec3(0.22, 0.15, 0.1), vec3(0.32, 0.22, 0.15), g) * (1.0 - smoothstep(0.01, 0.0, fract(vWP.z / 0.16) * 0.16) * 0.6);` }),
+      deck: M.surface('wood_floor_deck', { scale: 0.45, tint: '#c8b8a8' }),
       screen: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x3a6bff, emissiveIntensity: 1.6 }),
     };
     this.buildShell();
@@ -398,10 +399,30 @@ export class House {
     b.box(0.6, 0.6, 0.6, m.walnut, -16.2, 0.3, -3.2, 0, 0.03);
     b.box(0.25, 0.08, 0.18, this.mats.black, -16.2, 0.64, -3.2, 0.3, 0.02);
     this.stations.push({ id: 'telefono', pos: new THREE.Vector3(-16.2, 0.7, -3.2), zone: 'living', label: 'Teléfono' });
+    // sillones de diseño junto al ventanal
+    for (const [cx, cz, ry] of [[-17.6, -9.6, Math.PI * 0.8], [-15.6, -10.6, Math.PI * 1.05]] as [number, number, number][]) {
+      const ch = prop('mid_century_lounge_chair', 1.05, 0.95, this.shadows);
+      ch.position.set(cx, 0, cz);
+      ch.rotation.y = ry;
+      this.group.add(ch);
+      this.col(cx - 0.45, cx + 0.45, 0, 1, cz - 0.45, cz + 0.45);
+    }
+    const succ = prop('potted_plant_04', 0.32, 0.25, this.shadows);
+    succ.position.set(-16.6, 0.0, -9.9);
+    this.group.add(succ);
     // plantas grandes
-    for (const [px, pz] of [[-18.8, -0.8], [-1.2, -11], [-18.6, 10.8]]) this.plant(px, pz, 0);
+    for (const [px, pz] of [[-18.8, -0.8], [-1.2, -11], [-7.2, 11.0]]) this.plant(px, pz, 0);
     // luces del living
-    this.light('living', new THREE.PointLight(0xffd2a0, 18, 14, 1.6)).position.set(-10, 6, -6);
+    this.light('living', new THREE.PointLight(0xffd2a0, 14, 14, 1.6)).position.set(-10, 6, -6);
+    // luz general cálida desde el techo (rebote) y bañadores sobre la biblioteca
+    if (this.high) for (const [lx, lz] of [[-16, -7], [-6, -7], [-16, 3], [-6, 3]]) this.light('living', new THREE.PointLight(0xffe0bf, 9, 15, 1.4)).position.set(lx, 7.6, lz);
+    if (this.high) for (const bx of [-17.6, -13.8, -10]) {
+      const sp = new THREE.SpotLight(0xffd8a8, 26, 8, 0.75, 0.6, 1.5);
+      sp.position.set(bx, 4.3, 9.4);
+      sp.target.position.set(bx, 1.6, 11.8);
+      this.group.add(sp.target);
+      this.light('living', sp);
+    }
     this.light('living', new THREE.PointLight(0xb06bff, 10, 12, 1.8)).position.set(-4, 2, -10.5);
     this.light('living', new THREE.PointLight(0xffd2a0, 10, 10, 1.8)).position.set(-12, 3.2, 6.5);
     this.light('living', new THREE.PointLight(0xffc890, 8, 9, 1.8)).position.set(-13.5, 2.5, 10.5);
@@ -415,17 +436,10 @@ export class House {
   }
 
   private plant(x: number, z: number, y: number) {
-    const b = this.b;
-    b.box(0.7, 0.8, 0.7, this.mats.black, x, y + 0.4, z, 0, 0.06);
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f5a35, roughness: 0.6, side: THREE.DoubleSide });
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2;
-      const leaf = new THREE.PlaneGeometry(0.28, 1.1, 1, 4);
-      const p = leaf.attributes.position as THREE.BufferAttribute;
-      for (let k = 0; k < p.count; k++) { const yy = p.getY(k) + 0.55; p.setZ(k, yy * yy * 0.25); }
-      leaf.computeVertexNormals();
-      b.add(leaf, leafMat, new THREE.Matrix4().compose(new THREE.Vector3(x, y + 1.2 + (i % 3) * 0.25, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, a, 0, 'YXZ')), new THREE.Vector3(1, 1 + (i % 4) * 0.2, 1)));
-    }
+    const p = prop('potted_plant_02', 1.45, 1.1, this.shadows);
+    p.position.set(x, y, z);
+    p.rotation.y = x * 1.7 + z;
+    this.group.add(p);
     this.col(x - 0.4, x + 0.4, y, y + 1.5, z - 0.4, z + 0.4);
   }
 
@@ -516,10 +530,18 @@ export class House {
     this.light('bar', new THREE.PointLight(0xff4fa3, 14, 14, 1.6)).position.set(9, 4.5, -7);
     this.light('bar', new THREE.PointLight(0xffd29a, 4, 8, 1.8)).position.set(2.2, 3.2, 6);
     for (let i = 0; i < 4; i++) {
-      const pend = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 12), this.glow('bar', '#ffcf8a', 1.8));
-      pend.position.set(5 + i * 3, 2.7, 7.6);
-      this.group.add(pend);
-      b.box(0.01, 1.4, 0.01, m.black, 5 + i * 3, 3.45, 7.6);
+      const lamp = prop('modern_ceiling_lamp_01', 1.6, 1, false);
+      lamp.position.set(5 + i * 3, 2.55, 7.6);
+      lamp.traverse((o) => {
+        const me = o as THREE.Mesh;
+        if (!me.isMesh) return;
+        const mt = (me.material as THREE.MeshStandardMaterial).clone();
+        const c = mt.color;
+        if (c.r + c.g + c.b > 2.1 && !mt.metalness) { mt.emissive = new THREE.Color('#ffcf8a'); mt.emissiveIntensity = 1.4; this.rig('bar').mats.push({ m: mt, base: 1.4 }); }
+        me.material = mt;
+      });
+      this.group.add(lamp);
+      b.box(0.01, 1.0, 0.01, m.black, 5 + i * 3, 4.6, 7.6);
     }
     if (this.high) {
       const ra = new THREE.RectAreaLight(0xff9d3a, 4, 15, 3.6);
@@ -630,6 +652,11 @@ export class House {
     // sillón y pantalla gigante en el tabique
     b.box(0.04, 2.0, 3.6, m.screen, 0.2, y0 + 1.8, 4.4);
     b.box(1.0, 0.45, 3.0, M.velvet('#20304a'), 3.2, y0 + 0.23, 4.4, 0, 0.15);
+    b.box(0.8, 0.42, 0.8, m.walnut, 4.6, y0 + 0.21, 4.4, 0, 0.02);
+    const chess = prop('chess_set', 0.12, 0.62, this.shadows);
+    chess.position.set(4.6, y0 + 0.42, 4.4);
+    this.group.add(chess);
+    this.col(4.2, 5.0, y0, y0 + 0.5, 4.0, 4.8);
     this.col(2.6, 3.8, y0, y0 + 0.6, 2.8, 6);
     // neones
     b.box(6, 0.05, 0.05, this.glow('juegos', '#2ee6ff', 3), 10, CEIL - 0.6, 6);

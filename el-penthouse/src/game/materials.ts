@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { tex, TexId } from './assets';
 
 export const NOISE = /* glsl */ `
 float ph21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -109,13 +110,10 @@ export function blackSteel() {
 
 /** Terciopelo: brillo rasante tipo sheen. */
 export function velvet(color: string) {
-  const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.85, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.35) });
-  return m;
+  return surface('velour_velvet', { scale: 2.2, tint: color, sheen: true, normal: 0.8 });
 }
 export function leather(color: string) {
-  return proc({ color, roughness: 0.55 }, {
-    color: `diffuseColor.rgb *= 0.9 + 0.15 * pn2(vLP.xy * 80.0) * pn2(vLP.zy * 60.0);`,
-  });
+  return surface('brown_leather', { scale: 1.6, tint: new THREE.Color(color).multiplyScalar(2.2), rough: 0.9 });
 }
 
 /** Panel de ónix retroiluminado (emisivo con vetas). */
@@ -188,4 +186,43 @@ export function textTexture(text: string, opts: { w?: number; h?: number; font?:
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
+}
+
+/**
+ * Superficie con textura escaneada real (color, normal, AO/rugosidad/metal) mapeada en espacio mundo:
+ * no se estira según el tamaño de cada caja. 'floor' proyecta desde arriba; 'tri' elige el eje según la normal.
+ */
+export function surface(id: TexId, o: { scale: number; tint?: THREE.Color | string; rough?: number; normal?: number; ao?: number; physical?: boolean; sheen?: boolean } ) {
+  const t = tex(id);
+  const params: THREE.MeshPhysicalMaterialParameters = { color: new THREE.Color(o.tint ?? 0xffffff), roughness: 1, metalness: 0 };
+  if (o.sheen) Object.assign(params, { sheen: 1, sheenRoughness: 0.5, sheenColor: new THREE.Color(o.tint ?? 0xffffff).lerp(new THREE.Color(1, 1, 1), 0.4) });
+  const m = o.physical || o.sheen ? new THREE.MeshPhysicalMaterial(params) : new THREE.MeshStandardMaterial(params);
+  const U = { uD: { value: t.diff }, uN: { value: t.nor }, uA: { value: t.arm }, uS: { value: o.scale }, uNS: { value: o.normal ?? 1 }, uR: { value: o.rough ?? 1 }, uAO: { value: o.ao ?? 0.7 } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'varying vec3 sWP;\nvarying vec3 sWN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+      sWP = (modelMatrix * vec4(transformed, 1.0)).xyz; sWN = normalize(mat3(modelMatrix) * objectNormal);`);
+    sh.fragmentShader = `varying vec3 sWP; varying vec3 sWN;
+      uniform sampler2D uD, uN, uA; uniform float uS, uNS, uR, uAO;
+      vec3 sT, sB, sN; vec2 sUV;
+      void sFrame(){
+        vec3 n = sWN; vec3 a = abs(n);
+        if (a.y >= a.x && a.y >= a.z) { float s = sign(n.y); sN = vec3(0.0, s, 0.0); sT = vec3(1.0, 0.0, 0.0); sB = vec3(0.0, 0.0, -s); sUV = vec2(sWP.x, -s * sWP.z); }
+        else if (a.x >= a.z) { float s = sign(n.x); sN = vec3(s, 0.0, 0.0); sT = vec3(0.0, 0.0, -s); sB = vec3(0.0, 1.0, 0.0); sUV = vec2(-s * sWP.z, sWP.y); }
+        else { float s = sign(n.z); sN = vec3(0.0, 0.0, s); sT = vec3(s, 0.0, 0.0); sB = vec3(0.0, 1.0, 0.0); sUV = vec2(s * sWP.x, sWP.y); }
+        sUV *= uS;
+      }
+      ` + sh.fragmentShader
+      .replace('#include <map_fragment>', `sFrame();
+        vec3 sArm = texture2D(uA, sUV).rgb;
+        diffuseColor.rgb *= texture2D(uD, sUV).rgb * mix(1.0, sArm.r, uAO);`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(sArm.g * uR, 0.22, 1.0);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = sArm.b;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        vec3 sTn = texture2D(uN, sUV).xyz * 2.0 - 1.0; sTn.xy *= uNS;
+        vec3 sW = normalize(sT * sTn.x + sB * sTn.y + sN * sTn.z);
+        normal = normalize((viewMatrix * vec4(sW, 0.0)).xyz);`);
+  };
+  m.customProgramCacheKey = () => 'surf';
+  return m;
 }

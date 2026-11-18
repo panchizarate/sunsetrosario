@@ -3,6 +3,7 @@ import { CATEGORIES, Category, ItemKind, ZONES, ZoneId, MEZZ } from './config';
 import { itemGeometry, PICK_RADIUS } from './itemgeo';
 import type { House, Section } from './house';
 import { NOISE } from './materials';
+import { modelParts, Part } from './assets';
 import { bookAtlas, labelAtlas, capAtlas, shirtAtlas, BOOK_CELLS, LABEL_CELLS, CAP_CELLS, SHIRT_CELLS } from './itemtex';
 
 export type ItemState = 'floor' | 'held' | 'placed' | 'flying';
@@ -16,7 +17,7 @@ export interface Item {
   state: ItemState;
   pos: THREE.Vector3; // centro aproximado (para apuntar)
   floor: THREE.Matrix4;
-  mesh: THREE.InstancedMesh;
+  mesh: MultiMesh;
   index: number;
   slot: number;
   section: Section | null;
@@ -203,14 +204,66 @@ function instanceColor(cat: Category, variant: number, r: () => number): THREE.C
   return base.clone().offsetHSL(0, 0, (r() - 0.5) * 0.08);
 }
 
+
+/** Un objeto puede tener varias partes (vidrio, corcho, etiqueta...): una InstancedMesh por parte, con las mismas matrices. */
+export class MultiMesh {
+  parts: THREE.InstancedMesh[] = [];
+  size = new THREE.Vector3(0.2, 0.3, 0.2);
+  hi: THREE.InstancedBufferAttribute;
+  constructor(src: Part[], public count: number, castShadow: boolean, shadows: boolean, public colorable: boolean, vr: Float32Array) {
+    this.hi = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
+    const va = new THREE.InstancedBufferAttribute(vr, 1);
+    for (const p of src) {
+      p.geo.setAttribute('aHi', this.hi);
+      p.geo.setAttribute('aVar', va);
+      const m = new THREE.InstancedMesh(p.geo, p.mat, count);
+      m.frustumCulled = false;
+      m.castShadow = castShadow;
+      m.receiveShadow = shadows;
+      this.parts.push(m);
+    }
+  }
+  setMatrixAt(i: number, m: THREE.Matrix4) { for (const p of this.parts) p.setMatrixAt(i, m); }
+  setColorAt(i: number, c: THREE.Color) { if (this.colorable) for (const p of this.parts) p.setColorAt(i, c); }
+  get instanceMatrix() { const self = this; return { set needsUpdate(_v: boolean) { self.touch(); } }; }
+  touch() { for (const p of this.parts) p.instanceMatrix.needsUpdate = true; }
+}
+
+/** Material de un modelo escaneado + brillo del escáner. */
+const mdlCache = new Map<THREE.Material, THREE.Material>();
+function modelMaterial(src: THREE.Material): THREE.Material {
+  if (mdlCache.has(src)) return mdlCache.get(src)!;
+  const m = (src as THREE.MeshStandardMaterial).clone() as THREE.MeshPhysicalMaterial;
+  if ((m as any).transmission > 0 || m.transparent) {
+    m.transmission = 0; m.transparent = true; m.opacity = Math.min(m.opacity, 0.6); m.depthWrite = false; m.roughness = Math.min(m.roughness, 0.08);
+  }
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = ITEM_TIME;
+    sh.vertexShader = 'attribute float aHi;\nvarying float vHi;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHi = aHi;');
+    sh.fragmentShader = 'uniform float uTime;\nvarying float vHi;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += vec3(0.35, 0.9, 1.0) * vHi * (0.55 + 0.45 * sin(uTime * 6.0));');
+  };
+  m.customProgramCacheKey = () => 'mdl';
+  mdlCache.set(src, m);
+  return m;
+}
+
+/** Objetos que usan modelos escaneados reales: [modelo, nodo] por versión, alto y ancho máximo. */
+const MODELS: Record<string, { list: [string, string | null][]; H: number; W: number }> = {
+  jarron0: { list: [['ceramic_vase_01', null], ['ceramic_vase_02', null], ['ceramic_vase_03', null], ['ceramic_vase_04', null], ['brass_vase_01', null], ['brass_vase_03', null], ['brass_vase_04', null], ['antique_ceramic_vase_01', null]], H: 0.3, W: 0.19 },
+  escultura0: { list: [['marble_bust_01', null], ['horse_statue_01', null], ['concrete_cat_statue', null], ['bronze_whale_statue', null], ['carved_wooden_elephant', null], ['bronze_shark_statue', null]], H: 0.25, W: 0.21 },
+  vela0: { list: [['wooden_candlestick', null], ['brass_candleholders', 'brass_candleholder_01'], ['brass_candleholders', 'brass_candleholder_02']], H: 0.24, W: 0.15 },
+  botella0: { list: [['wine_bottles_01', 'wine_bottles_01_bordeaux'], ['wine_bottles_01', 'wine_bottles_01_burgundy'], ['wine_bottles_01', 'wine_bottles_01_alsace']], H: 0.33, W: 0.085 },
+  botella3: { list: [['wine_bottles_01', 'wine_bottles_01_champagne']], H: 0.335, W: 0.088 },
+};
+
 export class ItemSystem {
   items: Item[] = [];
-  meshes: THREE.InstancedMesh[] = [];
+  meshes: MultiMesh[] = [];
+  byKey = new Map<string, MultiMesh[]>();
   private grid = new Map<string, Item[]>();
   private flights: Flight[] = [];
-  private hiAttr = new Map<THREE.InstancedMesh, THREE.InstancedBufferAttribute>();
-  displayMats = new Map<string, THREE.Material>();
-  geos = new Map<string, THREE.BufferGeometry>();
+  private settles: { it: Item; m: THREE.Matrix4; t: number }[] = [];
+  private hover: Item | null = null;
 
   constructor(scene: THREE.Scene, private house: House, shadows: boolean) {
     let seed = 777;
@@ -219,30 +272,38 @@ export class ItemSystem {
     for (const cat of CATEGORIES) {
       for (let v = 0; v < cat.variants.length; v++) {
         const key = cat.kind + v;
-        const geo = itemGeometry(cat.kind, cat.kind === 'botella' || cat.kind === 'copa' || cat.kind === 'figura' ? v : 0);
-        this.geos.set(key, geo);
-        const mat = materialFor(cat.kind, v);
-        this.displayMats.set(key, mat);
-        const mesh = new THREE.InstancedMesh(geo, mat, cat.perVariant);
-        mesh.frustumCulled = false;
-        mesh.castShadow = shadows && cat.kind !== 'copa';
-        mesh.receiveShadow = shadows;
-        const hi = new THREE.InstancedBufferAttribute(new Float32Array(cat.perVariant), 1);
-        geo.setAttribute('aHi', hi);
         const cells = CELLS[cat.kind] ?? 1;
-        const vr = new Float32Array(cat.perVariant);
-        for (let k = 0; k < vr.length; k++) vr[k] = Math.floor(r() * cells * 0.9999);
-        if (cat.kind === 'figura') for (let k = 0; k < vr.length; k++) vr[k] = r() < 0.06 ? 6 + Math.floor(r() * 2) : Math.floor(r() * 6); // figuras raras doradas/cromadas
-        geo.setAttribute('aVar', new THREE.InstancedBufferAttribute(vr, 1));
-        this.hiAttr.set(mesh, hi);
-        for (let k = 0; k < cat.perVariant; k++) {
-          mesh.setColorAt(k, instanceColor(cat, v, r));
-          const it: Item = { id: id++, kind: cat.kind, variant: v, cat, zone: cat.zone, state: 'floor', pos: new THREE.Vector3(), floor: new THREE.Matrix4(), mesh, index: k, slot: -1, section: null, cell: 0 };
-          this.scatter(it, r);
-          this.items.push(it);
+        const cfg = MODELS[key];
+        // versiones de modelo (si hay modelos escaneados) o geometría procedural
+        const variants: { parts: Part[]; size: THREE.Vector3 | null; colorable: boolean }[] = [];
+        if (cfg) for (const [mid, node] of cfg.list) {
+          const mp = modelParts(mid, node, cfg.H, cfg.W);
+          if (mp.parts.length) variants.push({ parts: mp.parts.map((p) => ({ geo: p.geo, mat: modelMaterial(p.mat) })), size: mp.size, colorable: false });
         }
-        scene.add(mesh);
-        this.meshes.push(mesh);
+        if (!variants.length) {
+          const geo = itemGeometry(cat.kind, cat.kind === 'botella' || cat.kind === 'copa' || cat.kind === 'figura' ? v : 0);
+          variants.push({ parts: [{ geo, mat: materialFor(cat.kind, v) }], size: null, colorable: true });
+        }
+        const counts = variants.map((_, i) => Math.floor(cat.perVariant / variants.length) + (i < cat.perVariant % variants.length ? 1 : 0));
+        const mms = variants.map((vv, i) => {
+          const vr = new Float32Array(counts[i]);
+          for (let k = 0; k < vr.length; k++) vr[k] = cat.kind === 'figura' ? (r() < 0.06 ? 6 + Math.floor(r() * 2) : Math.floor(r() * 6)) : Math.floor(r() * cells * 0.9999);
+          const mm = new MultiMesh(vv.parts, counts[i], shadows && cat.kind !== 'copa', shadows, vv.colorable, vr);
+          if (vv.size) mm.size.copy(vv.size);
+          for (const p of mm.parts) scene.add(p);
+          this.meshes.push(mm);
+          return mm;
+        });
+        this.byKey.set(key, mms);
+        let k = 0;
+        mms.forEach((mesh) => {
+          for (let idx = 0; idx < mesh.count; idx++, k++) {
+            mesh.setColorAt(idx, instanceColor(cat, v, r));
+            const it: Item = { id: id++, kind: cat.kind, variant: v, cat, zone: cat.zone, state: 'floor', pos: new THREE.Vector3(), floor: new THREE.Matrix4(), mesh, index: idx, slot: -1, section: null, cell: 0 };
+            this.scatter(it, r);
+            this.items.push(it);
+          }
+        });
       }
     }
     for (const it of this.items) this.gridAdd(it);
@@ -278,13 +339,13 @@ export class ItemSystem {
     let rx = 0, rz = 0, lift = 0;
     switch (it.kind) {
       case 'libro': rz = Math.PI / 2; lift = 0.025; break; // acostado
-      case 'botella': rx = Math.PI / 2; lift = 0.04; break;
+      case 'botella': rx = Math.PI / 2; lift = Math.max(0.04, Math.max(it.mesh.size.x, it.mesh.size.z) / 2); break;
       case 'copa': if (r() < 0.6) { rz = Math.PI / 2; lift = 0.04; } break;
       case 'prenda': rx = -Math.PI / 2; lift = 0.02; break;
       case 'zapatilla': rz = r() < 0.3 ? Math.PI / 2 : 0; lift = rz ? 0.055 : 0; break;
       case 'gorra': if (r() < 0.4) { rx = Math.PI; lift = 0.1; } break;
       case 'figura': if (r() < 0.6) { rz = Math.PI / 2; lift = 0.03; } break;
-      case 'jarron': case 'vela': case 'escultura': if (r() < 0.5) { rz = Math.PI / 2; lift = 0.05; } break;
+      case 'jarron': case 'vela': case 'escultura': if (r() < 0.5) { rz = Math.PI / 2; lift = Math.max(it.mesh.size.x, it.mesh.size.z) / 2; } break;
       case 'almohadon': rx = -Math.PI / 2; break;
     }
     // pilas de libros/ropa: a veces apilados
@@ -364,19 +425,24 @@ export class ItemSystem {
     this.flights.push({ item: it, from: it.floor.clone(), to: sec.slots[slot], toFn: null, t: 0, dur: 1.1, done: () => { it.state = 'placed'; it.mesh.setMatrixAt(it.index, sec.slots[slot]); it.mesh.instanceMatrix.needsUpdate = true; onDone(); } });
   }
 
+  /** Resalta el objeto que estás mirando. */
+  setHover(it: Item | null) {
+    if (this.hover === it) return;
+    if (this.hover && this.hover.state === 'floor') { this.hover.mesh.hi.setX(this.hover.index, this.hiBase(this.hover)); this.hover.mesh.hi.needsUpdate = true; }
+    this.hover = it;
+    if (it) { it.mesh.hi.setX(it.index, 0.75); it.mesh.hi.needsUpdate = true; }
+  }
+  private pred: ((it: Item) => boolean) | null = null;
+  private hiBase(it: Item) { return this.pred && this.pred(it) ? 1 : 0; }
   setHighlight(pred: ((it: Item) => boolean) | null) {
-    for (const [mesh, attr] of this.hiAttr) {
-      let changed = false;
-      for (let k = 0; k < attr.count; k++) attr.setX(k, 0);
-      if (pred) for (const it of this.items) if (it.mesh === mesh && it.state === 'floor' && pred(it)) { attr.setX(it.index, 1); changed = true; }
-      attr.needsUpdate = true;
-      void changed;
-    }
+    this.pred = pred;
+    for (const mm of this.meshes) { mm.hi.array.fill(0); mm.hi.needsUpdate = true; }
+    if (pred) for (const it of this.items) if (it.state === 'floor' && pred(it)) it.mesh.hi.setX(it.index, 1);
   }
 
   update(dt: number, t: number) {
     ITEM_TIME.value = t;
-    const touched = new Set<THREE.InstancedMesh>();
+    const touched = new Set<MultiMesh>();
     for (let i = this.flights.length - 1; i >= 0; i--) {
       const f = this.flights[i];
       f.t += dt;
@@ -395,7 +461,20 @@ export class ItemSystem {
       if (k >= 1) {
         this.flights.splice(i, 1);
         f.done();
+        if (f.item.state === 'placed' && f.to) this.settles.push({ it: f.item, m: f.to.clone(), t: 0 });
       }
+    }
+    // rebote al apoyarse: se aplasta y vuelve
+    for (let i = this.settles.length - 1; i >= 0; i--) {
+      const st = this.settles[i];
+      st.t += dt;
+      const k = Math.min(1, st.t / 0.32);
+      const a = Math.sin(k * Math.PI * 2.2) * (1 - k) * 0.16;
+      st.m.decompose(tmpP, tmpQ, tmpS);
+      const sc = new THREE.Vector3(tmpS.x * (1 + a * 0.6), tmpS.y * (1 - a), tmpS.z * (1 + a * 0.6));
+      st.it.mesh.setMatrixAt(st.it.index, new THREE.Matrix4().compose(tmpP, tmpQ, sc));
+      touched.add(st.it.mesh);
+      if (k >= 1) { st.it.mesh.setMatrixAt(st.it.index, st.m); this.settles.splice(i, 1); }
     }
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
   }
