@@ -12,7 +12,7 @@ import { City } from './city';
 import { ItemSystem, Item } from './items';
 import { nightEnvironment } from './env';
 import { Input } from './input';
-import { UI, HeldGroup, fmt, h } from './ui';
+import { UI, HeldGroup, fmt, h, ICON } from './ui';
 import { audio, Mat } from './audio';
 import { Bob, Drones, Sparkles, makeBall } from './actors';
 import * as A from './activities';
@@ -118,8 +118,8 @@ export class Game {
     const sc = this.scene;
     sc.fog = new THREE.FogExp2(0x1a0f22, 0.0018);
     sc.environment = nightEnvironment(this.renderer);
-    sc.environmentIntensity = 1.0;
-    sc.add(new THREE.HemisphereLight(0x8a7aff, 0x1a1210, 0.25));
+    sc.environmentIntensity = 1.15;
+    sc.add(new THREE.HemisphereLight(0x8a7aff, 0x2a1c14, 0.42));
     const moon = new THREE.DirectionalLight(0x9fb4ff, 1.2);
     moon.position.set(-30, 40, -60);
     moon.castShadow = this.high;
@@ -145,7 +145,7 @@ export class Game {
     this.secHelper.visible = false;
     sc.add(this.secHelper);
     this.city.onThunder = (s) => { audio.thunder(s * (1 + this.storm)); };
-    this.house.setZoneLevel('living', 0.5);
+    this.house.setZoneLevel('living', 0.75);
     for (const z of SORT_ZONES) {
       this.zoneTotal.set(z, this.items.items.filter((i) => i.zone === z).length);
       this.zoneCount.set(z, 0);
@@ -235,7 +235,7 @@ export class Game {
     for (const d of this.house.doors) if (d.open) { d.t = 1; d.mesh.position.copy(d.base).add(d.slide); d.collider.makeEmpty(); }
     this.drones.setCount(this.st.helpers, this.pos);
     const cz = this.currentZone();
-    if (SORT_ZONES.includes(cz)) this.house.setZoneLevel(cz, 0.5);
+    if (SORT_ZONES.includes(cz)) this.house.setZoneLevel(cz, 0.75);
     this.restoreClues();
     this.storyAfterCut();
   }
@@ -308,7 +308,7 @@ export class Game {
     if (this.ui.modalOpen) return;
     this.openModal();
     const cams = this.cctvList();
-    const extra = `<div class="tabs"><button id="tb-cams" ${cams.length ? '' : 'disabled'}>📹 Cámaras (${cams.length})</button>${this.drinkInfo()}</div>`;
+    const extra = `<div class="tabs"><button id="tb-cams" ${cams.length ? '' : 'disabled'}>${ICON.cam}Cámaras (${cams.length})</button>${this.drinkInfo()}</div>`;
     const render = () => {
       const box = this.ui.shop(this.money, this.levels, (id) => { this.buy(id); render(); }, extra);
       (box.querySelector('#tb-cams') as HTMLElement).onclick = () => { this.ui.closeModal(); this.openModal(); this.cctvMenu(); };
@@ -317,7 +317,7 @@ export class Game {
     this.ui.onClose = () => this.modalClosed();
   }
   private drinkInfo() {
-    const a = [...this.drinks].filter(([, t]) => t > 0).map(([id, t]) => `<span class="drink">🍸 ${id} · ${Math.ceil(t)}s</span>`);
+    const a = [...this.drinks].filter(([, t]) => t > 0).map(([id, t]) => `<span class="drink">${ICON.drink}${id} · ${Math.ceil(t)}s</span>`);
     return a.join('');
   }
   private buy(id: UpgradeId) {
@@ -501,7 +501,7 @@ export class Game {
   };
   grab(it: Item) {
     const free = this.st.hands - this.held.length;
-    if (free <= 0) { this.ui.toast('Tenés las manos llenas · mejorá <b>Manos</b> en la tablet'); audio.wrong(); return; }
+    if (free <= 0) { this.ui.toast('Manos llenas', 2600, 'warn', 'Dejá lo que llevás o mejorá <b>Manos</b> en la tablet'); audio.wrong(); return; }
     const grabExtra = this.st.grabExtra + ((this.drinks.get('Gin Tonic') ?? 0) > 0 ? 4 : 0);
     const list: Item[] = [it];
     if (grabExtra > 0) {
@@ -534,7 +534,7 @@ export class Game {
         const g = this.groups()[this.active];
         if (g) {
           const target = this.house.sections.find((s) => s.kind === g.kind && s.variant === g.variant)!;
-          this.ui.toast(`Eso no va acá · buscá <b>${target.label}</b>`);
+          this.ui.toast('Eso no va acá', 2600, 'warn', `Va en <b>${target.label}</b>`);
         }
         this.refreshMoney();
       }
@@ -570,7 +570,7 @@ export class Game {
     this.sparkles.burst(sec.box, zc, 160);
     const bonus = Math.round(SHELF_BONUS * (ZONE_PAY[sec.zone] ?? 1));
     this.addMoney(bonus);
-    this.ui.banner(sec.label, `Completo · +${fmt(bonus)}`, zc);
+    this.ui.banner(sec.label, `Estante completo · +${fmt(bonus)}`, zc);
   }
   private zoneDone(z: ZoneId) {
     this.done.add(z);
@@ -582,7 +582,7 @@ export class Game {
     const door = NEXT_DOOR[z];
     if (door) setTimeout(() => this.house.openDoor(door), 1800);
     const nz = SORT_ZONES[idx + 1];
-    if (nz) this.house.setZoneLevel(nz, 0.5);
+    if (nz) this.house.setZoneLevel(nz, 0.75);
     audio.intensity = Math.min(1, (this.done.size) / 4);
     const zz = ZONES.find((x) => x.id === z)!;
     this.ui.banner(`${zz.name} impecable`, `Zona completa · +${fmt(bonus)}`, zz.neon);
@@ -644,7 +644,7 @@ export class Game {
     this.basket = true;
     this.vmKey = '';
     this.updateViewmodel();
-    this.ui.toast(`Mantené ${this.input.isTouch ? '✋' : 'clic'} para cargar, soltá para tirar · ${this.input.isTouch ? 'USAR' : 'E'} para salir`, 3500);
+    this.ui.toast('Básquet', 4000, 'info', `Mantené ${this.input.isTouch ? 'el botón' : 'clic'} para cargar y soltá para tirar. <b>${this.input.isTouch ? 'USAR' : 'E'}</b> para salir.`);
   }
   private exitBasket() { this.basket = false; this.vmKey = ''; this.ball.visible = false; this.updateViewmodel(); }
   private updateBasket(dt: number) {
@@ -819,7 +819,7 @@ export class Game {
   private call(lines: [string, string][]) {
     this.phone = { lines, t: 0 };
     audio.setRinging(true);
-    this.ui.toast(`📞 Número desconocido · <b>${this.input.isTouch ? 'USAR' : 'E'}</b> para atender`, 6000);
+    this.ui.toast('Número desconocido', 9000, 'call', `Llamada entrante · <b>${this.input.isTouch ? 'USAR' : 'E'}</b> para atender`);
   }
   private answer() {
     if (!this.phone) return;
@@ -828,7 +828,7 @@ export class Game {
     audio.voice();
     setTimeout(() => audio.voice(), 3000);
     this.phone = null;
-    this.ui.toast('', 1);
+    this.ui.toast('');
   }
   private cut(sec: number) {
     this.powerCut = sec;
@@ -909,7 +909,7 @@ export class Game {
   }
   private cctvNotify() {
     this.flags.cctv1 = 1;
-    this.ui.toast('📹 Nueva grabación en la <b>tablet</b>', 4500);
+    this.ui.toast('Nueva grabación', 5000, 'cam', 'Cámaras de seguridad · abrila en la <b>tablet</b>');
     this.ui.say('BOB', 'Se recuperó una grabación de seguridad. Está en su tablet.', 3.4);
     this.bob.glitch = 1;
   }
@@ -988,7 +988,7 @@ export class Game {
   }
   private secretDoor() {
     if (this.tokens.size < TOKENS_FOR_SECRET) {
-      this.ui.toast(`Detrás del cuadro hay una ranura con tres huecos · fichas ${this.tokens.size}/${TOKENS_FOR_SECRET}`, 3500);
+      this.ui.toast('Una ranura con tres huecos', 3500, 'info', `Detrás del cuadro · fichas doradas ${this.tokens.size}/${TOKENS_FOR_SECRET}`);
       if (!this.flags.slotHint) { this.flags.slotHint = 1; this.ui.say('BOB', 'Hay fichas doradas en el arcade, en la terraza y... en algún otro lado.', 4); }
       return;
     }
@@ -1050,8 +1050,25 @@ export class Game {
 
   // ------------------------------------------------------------------ loop
   update(dtReal: number) {
-    const dt = Math.min(0.05, dtReal) * this.timeScale;
-    if (!this.started || this.paused) { if (!this.noRender) this.composer.render(); return; }
+    const dt = Math.max(0, Math.min(0.05, dtReal)) * this.timeScale;
+    if (!this.started) {
+      // cámara de portada: travelling lento por el living hacia los ventanales
+      const t = performance.now() / 1000;
+      const k = (Math.sin(t * 0.05) + 1) / 2;
+      this.cam.position.set(-1.8 - k * 2.2, 1.75 + Math.sin(t * 0.13) * 0.06, 6.5 - k * 0.8);
+      this.cam.lookAt(-13 - k * 2, 2.3, -11);
+      this.cam.updateMatrixWorld();
+      this.viewmodel.visible = false;
+      this.bob.group.visible = false;
+      this.house.update(dt, t);
+      this.city.update(dt, t, this.cam.position, (x, z) => x > B.x0 && x < B.x1 && z > B.z0 && z < B.z1);
+      audio.update();
+      if (!this.noRender) this.composer.render();
+      return;
+    }
+    this.viewmodel.visible = !this.basket || this.ballLive <= 0;
+    this.bob.group.visible = true;
+    if (this.paused) { if (!this.noRender) this.composer.render(); return; }
     this.time += dt;
     this.input.update();
     const blockedInput = this.ui.modalOpen || this.ending;

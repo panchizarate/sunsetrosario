@@ -49,7 +49,7 @@ export function ruleta(ctx: Ctx) {
   wireBet(box, ctx, (n) => (bet = n), () => bet);
   const play = (kind: string, num = -1) => {
     if (busy) return;
-    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza para esa apuesta'); return; }
+    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza', 2400, 'coin', 'Bajá la apuesta o seguí ordenando'); return; }
     busy = true;
     ctx.add(-bet, true);
     audio.chip();
@@ -122,7 +122,7 @@ export function blackjack(ctx: Ctx) {
   };
   q('#deal').onclick = () => {
     if (live) return;
-    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza para esa apuesta'); return; }
+    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza', 2400, 'coin', 'Bajá la apuesta o seguí ordenando'); return; }
     cur = bet;
     ctx.add(-cur, true);
     deck = Array.from({ length: 52 * 4 }, (_, i) => i % 52).sort(() => Math.random() - 0.5);
@@ -171,7 +171,7 @@ export function slots(ctx: Ctx) {
   wireBet(box, ctx, (n) => (bet = n), () => bet);
   (box.querySelector('#spin') as HTMLElement).onclick = () => {
     if (busy) return;
-    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza para esa apuesta'); return; }
+    if (bet <= 0 || ctx.money() < bet) { ctx.ui.toast('No te alcanza', 2400, 'coin', 'Bajá la apuesta o seguí ordenando'); return; }
     busy = true;
     ctx.add(-bet, true);
     const res = [0, 1, 2].map(() => SYM[Math.floor(Math.random() * 6)]);

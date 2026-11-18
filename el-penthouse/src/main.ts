@@ -11,6 +11,8 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const high = qs.has('low') ? false : qs.has('high') ? true : !touch;
 if (qs.has('fresh')) Game.wipe();
+const FONTS = ['700 30px "Space Grotesk"', '500 16px "Space Grotesk"', '600 16px Inter'];
+await Promise.race([Promise.all(FONTS.map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 2500))]);
 const game = new Game(canvas, { high });
 (window as any).game = game;
 game.timeScale = +(qs.get('timescale') ?? 1);
@@ -20,15 +22,23 @@ game.noRender = qs.has('norender');
 const title = document.createElement('div');
 title.className = 'title-screen';
 const has = Game.hasSave();
+const kb = (k: string) => `<kbd>${k}</kbd>`;
 title.innerHTML = `
-  <div class="t-inner">
-    <small class="t-kicker">PISO 52 · TORMENTA · 23:40</small>
-    <h1>EL<br>PENTHOUSE</h1>
-    <p>Ordená 3.000 objetos en la casa de un millonario que nunca está.<br>Algo no cierra.</p>
-    <button class="primary big" id="play">${has ? 'Continuar' : 'Entrar'}</button>
-    ${has ? '<button class="ghost" id="new">Partida nueva</button>' : ''}
-    <div class="t-keys">${touch ? 'Joystick izquierdo para caminar · arrastrá a la derecha para mirar · ✋ agarrar/dejar' : 'WASD moverse · Mouse mirar · Clic agarrar/dejar · Q cambiar · E usar · T tablet'}</div>
-  </div>`;
+  <div class="t-scrim"></div>
+  <div class="t-main">
+    <h1 class="t-word"><span class="t-el">El</span><span class="t-ph">Penthouse</span></h1>
+    <p class="t-log">Te contrataron para ordenar los 3.000 objetos del piso 52 de Cristian Rolando. Él está de viaje. Eso dice BOB.</p>
+    <div class="t-acts">
+      <button class="primary big" id="play">${has ? 'Continuar' : 'Entrar al penthouse'}</button>
+      ${has ? '<button class="ghost" id="new">Partida nueva</button>' : ''}
+    </div>
+    <p class="t-keys">${touch ? 'Joystick a la izquierda para caminar · arrastrá a la derecha para mirar · botón de la mano para agarrar y dejar' : `${kb('W')}${kb('A')}${kb('S')}${kb('D')} caminar <span></span> ${kb('Clic')} agarrar y dejar <span></span> ${kb('Q')} cambiar <span></span> ${kb('E')} usar <span></span> ${kb('T')} tablet`}</p>
+  </div>
+  <dl class="t-read">
+    <div><dt>Hora</dt><dd>23:40</dd></div>
+    <div><dt>Piso</dt><dd>52</dd></div>
+    <div><dt>Clima</dt><dd>Tormenta</dd></div>
+  </dl>`;
 document.getElementById('ui')!.appendChild(title);
 const go = () => {
   title.classList.add('out');

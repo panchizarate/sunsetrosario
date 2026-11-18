@@ -121,7 +121,7 @@ export class House {
   }
   private rig(zone: ZoneId) {
     let r = this.rigs.get(zone);
-    if (!r) { r = { lights: [], mats: [], uniforms: [], level: 0.12, target: 0.12 }; this.rigs.set(zone, r); }
+    if (!r) { r = { lights: [], mats: [], uniforms: [], level: 0.3, target: 0.3 }; this.rigs.set(zone, r); }
     return r;
   }
   private light(zone: ZoneId, l: THREE.Light) {
@@ -336,7 +336,7 @@ export class House {
     for (let r = 0; r < 5; r++) {
       const y = 0.25 + r * 0.9;
       b.box(6 * secW, 0.04, 0.42, m.walnut, x0 + 3 * secW, y, z);
-      if (r < 4) b.box(6 * secW - 0.1, 0.015, 0.02, this.glow('living', '#ffd29a', 2.2), x0 + 3 * secW, y + 0.86, z - 0.18);
+      if (r < 4) b.box(6 * secW - 0.1, 0.015, 0.02, this.glow('living', '#ffd29a', 1.3), x0 + 3 * secW, y + 0.86, z - 0.18);
     }
     this.col(x0, x0 + 6 * secW, 0, 4, z - 0.25, B.z1);
     for (let s = 0; s < 6; s++) {
@@ -384,7 +384,7 @@ export class House {
       this.section('vela', 0, 'living', new THREE.Box3(new THREE.Vector3(-14.9, 0.5, 5.6), new THREE.Vector3(-9.1, 1.5, 7.4)), slots);
     }
     // lámpara colgante sobre la mesa
-    const pend = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 8, 64), this.glow('living', '#ffe0b0', 3));
+    const pend = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 8, 64), this.glow('living', '#ffe0b0', 1.8));
     pend.rotation.x = Math.PI / 2;
     pend.position.set(-12, 2.6, 6.5);
     this.group.add(pend);
@@ -434,7 +434,7 @@ export class House {
     const b = this.b, m = this.mats;
     // contrabarra con ónix retroiluminado y 5 secciones de botellas (4 x 15)
     const onyx = M.onyx(new THREE.Color('#ff9d3a'));
-    this.rig('bar').uniforms.push({ u: onyx.userData.uniforms.uOn, base: 1.1 });
+    this.rig('bar').uniforms.push({ u: onyx.userData.uniforms.uOn, base: 0.55 });
     b.box(15.4, 3.9, 0.06, onyx, 9.5, 1.95, B.z1 - 0.05);
     const z = B.z1 - 0.3;
     for (let s = 0; s < 5; s++) {
@@ -443,7 +443,7 @@ export class House {
       for (let r = 0; r < 4; r++) {
         const y = 0.6 + r * 0.82;
         b.box(2.96, 0.03, 0.4, m.clearGlass, x0 + 1.5, y, z);
-        b.box(2.9, 0.012, 0.02, this.glow('bar', '#ffd29a', 2.4), x0 + 1.5, y - 0.02, z - 0.19);
+        b.box(2.9, 0.012, 0.02, this.glow('bar', '#ffd29a', 1.3), x0 + 1.5, y - 0.02, z - 0.19);
         for (let k = 0; k < 15; k++) slots.push(this.slot(x0 + 0.12 + k * 0.19, y + 0.015, z, 0));
       }
       b.box(0.04, 3.9, 0.42, m.brass, x0, 1.95, z);
@@ -454,7 +454,7 @@ export class House {
     this.col(2, 17, 0, 4, z - 0.25, B.z1);
     // barra: frente de ónix, tapa de mármol blanco, apoyapiés de bronce
     const onyx2 = M.onyx(new THREE.Color('#ffb46a'));
-    this.rig('bar').uniforms.push({ u: onyx2.userData.uniforms.uOn, base: 1 });
+    this.rig('bar').uniforms.push({ u: onyx2.userData.uniforms.uOn, base: 0.6 });
     b.box(13, 1.05, 0.7, onyx2, 9.5, 0.525, 7.6, 0, 0.02);
     b.box(13.3, 0.07, 0.95, m.marbleW, 9.5, 1.09, 7.55, 0, 0.02);
     b.box(13, 0.04, 0.04, m.brass, 9.5, 0.22, 7.15);
@@ -473,7 +473,7 @@ export class House {
       for (let r = 0; r < 5; r++) {
         const y = 0.7 + r * 0.55;
         b.box(0.32, 0.025, 2.55, m.clearGlass, 0.3, y, z0 + 1.28);
-        b.box(0.02, 0.012, 2.5, this.glow('bar', '#ffd29a', 2), 0.45, y - 0.02, z0 + 1.28);
+        b.box(0.02, 0.012, 2.5, this.glow('bar', '#ffd29a', 1.2), 0.45, y - 0.02, z0 + 1.28);
         for (let k = 0; k < 10; k++) slots.push(this.slot(0.3, y + 0.013, z0 + 0.16 + k * 0.245, Math.PI / 2));
       }
       this.section('copa', s, 'bar', new THREE.Box3(new THREE.Vector3(0, 0.3, z0), new THREE.Vector3(1.1, 3.4, z0 + 2.6)), slots);
@@ -516,7 +516,7 @@ export class House {
     this.light('bar', new THREE.PointLight(0xff4fa3, 14, 14, 1.6)).position.set(9, 4.5, -7);
     this.light('bar', new THREE.PointLight(0xffd29a, 4, 8, 1.8)).position.set(2.2, 3.2, 6);
     for (let i = 0; i < 4; i++) {
-      const pend = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 12), this.glow('bar', '#ffcf8a', 3));
+      const pend = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 12), this.glow('bar', '#ffcf8a', 1.8));
       pend.position.set(5 + i * 3, 2.7, 7.6);
       this.group.add(pend);
       b.box(0.01, 1.4, 0.01, m.black, 5 + i * 3, 3.45, 7.6);
@@ -542,7 +542,7 @@ export class House {
         b.box(3.9, 0.035, 0.035, m.chrome, x0 + 1.95, y, B.z1 - 0.45);
         b.box(3.9, 0.012, 0.02, this.glow('vestidor', '#ffe6c8', 2.2), x0 + 1.95, y + 0.25, B.z1 - 0.2);
         const slots: THREE.Matrix4[] = [];
-        for (let k = 0; k < 75; k++) slots.push(this.slot(x0 + 0.06 + k * 0.051, y - 0.02, B.z1 - 0.45, Math.PI / 2));
+        for (let k = 0; k < 75; k++) slots.push(this.slot(x0 + 0.06 + k * 0.051, y - 0.02, B.z1 - 0.45, Math.PI / 2 + Math.sin(k * 12.9898 + v) * 0.14));
         this.section('prenda', v, 'vestidor', new THREE.Box3(new THREE.Vector3(x0, y - 1.3, B.z1 - 1.2), new THREE.Vector3(x0 + 3.9, y + 0.3, B.z1)), slots);
         this.label(CATEGORIES[7].variants[v].name.toUpperCase(), 1.0, 0.25, new THREE.Vector3(x0 + 1.95, y + 0.42, B.z1 - 0.12), Math.PI, '#ffe6f0', undefined, 'vestidor');
       }
@@ -575,7 +575,7 @@ export class House {
       for (let r = 0; r < 10; r++) for (let k = 0; k < 5; k++) {
         const zz = z0 + 0.14 + k * 0.215, yy = y0 + 0.65 + r * 0.29;
         b.box(0.08, 0.02, 0.02, m.brass, -0.26, yy, zz);
-        slots.push(this.slot(-0.36, yy - 0.04, zz, -Math.PI / 2, -0.15));
+        slots.push(this.slot(-0.33, yy - 0.06, zz, Math.PI / 2, 0.35));
       }
       this.section('gorra', s, 'vestidor', new THREE.Box3(new THREE.Vector3(-1.0, y0 + 0.4, z0), new THREE.Vector3(0, y0 + 3.6, z0 + 1.16)), slots);
       this.label(CATEGORIES[9].variants[s].name.toUpperCase(), 0.9, 0.22, new THREE.Vector3(-0.22, y0 + 3.62, z0 + 0.58), -Math.PI / 2, '#ffffff', undefined, 'vestidor');

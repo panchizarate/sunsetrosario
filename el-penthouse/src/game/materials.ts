@@ -81,8 +81,8 @@ export function walnut(scale = 1) {
   return proc({ color: 0xffffff, roughness: 0.5 }, {
     color: `
       vec3 q = vLP * ${scale.toFixed(2)};
-      float grain = sin((q.y + q.x * 0.2) * 55.0 + pfbm(q.xz * 4.0 + q.y) * 7.0) * 0.5 + 0.5;
-      diffuseColor.rgb = mix(vec3(0.11, 0.065, 0.04), vec3(0.24, 0.15, 0.09), grain * 0.6 + pn2(q.xy * 3.0) * 0.4);`,
+      float grain = sin((q.y + q.x * 0.15) * 140.0 + pfbm(q.xz * 6.0 + q.y * 2.0) * 5.0) * 0.5 + 0.5;
+      diffuseColor.rgb = mix(vec3(0.12, 0.07, 0.045), vec3(0.21, 0.13, 0.08), grain * 0.3 + pfbm(q.xy * vec2(2.0, 12.0)) * 0.7);`,
     rough: `pRough = 0.4 + pn2(vLP.xy * 30.0) * 0.15;`,
   });
 }
@@ -126,7 +126,7 @@ export function onyx(color = new THREE.Color('#ffb15a')) {
       vec2 p = vLP.xy * 0.9 + vLP.z;
       float w = pfbm(p * 1.4 + pfbm(p * 2.7) * 2.0);
       float v = smoothstep(0.02, 0.2, abs(w - 0.5));
-      totalEmissiveRadiance = uGlow * (0.35 + 0.9 * v) * uOn;`,
+      totalEmissiveRadiance = uGlow * (0.12 + 0.75 * v * v) * uOn;`,
   });
   m.userData.uniforms = { uGlow: { value: color }, uOn: { value: 0.25 } };
   return m;
